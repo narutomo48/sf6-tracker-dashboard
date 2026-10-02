@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>SF6 Tracker</title>
+<style>
+:root {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-2: #232321;
+  --text: #ffffff;
+  --text-2: #c3c2b7;
+  --muted: #898781;
+  --grid: #2c2c2a;
+  --axis: #383835;
+  --border: rgba(255,255,255,0.10);
+  --accent: #fab219;
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+  --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+  --loss: #5a5955;
+  --up: #0ca30c; --down: #e66767;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f0efec;
+    --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --accent: #b97c00;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+    --loss: #c3c2b7; --up: #006300; --down: #d03b3b;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--text);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", "Yu Gothic UI", "Meiryo", sans-serif; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
+header h1 { margin: 0; font-size: 20px; letter-spacing: .02em; }
+header h1 span { color: var(--accent); }
+.meta { color: var(--muted); font-size: 12px; }
+.alert { margin: 12px 0 0; padding: 10px 14px; border-radius: 8px; border: 1px solid #d03b3b;
+  background: color-mix(in srgb, #d03b3b 12%, transparent); font-size: 13px; }
+.alert b::before { content: "⚠ "; }
+
+.filters { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 16px 0 12px; }
+.filters label { color: var(--text-2); font-size: 12px; margin-right: 6px; }
+select, .seg button { font: inherit; font-size: 13px; color: var(--text); background: var(--surface);
+  border: 1px solid var(--border); border-radius: 6px; padding: 4px 10px; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; cursor: pointer; background: transparent; color: var(--text-2); }
+.seg button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; border-bottom: 1px solid var(--axis); margin-top: 4px; }
+.tab { font: inherit; font-weight: 600; letter-spacing: .03em; background: none; border: 0; color: var(--text-2);
+  padding: 8px 14px; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -1px; }
+.tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+.tab.add { color: var(--muted); font-weight: 400; }
+.picker { position: relative; }
+.picker-panel { position: absolute; z-index: 20; top: 100%; left: 0; min-width: 260px; max-height: 420px; overflow: auto;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.picker-panel label { display: flex; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 4px; cursor: pointer; }
+.picker-panel label:hover { background: var(--surface-2); }
+.picker-panel .sub { color: var(--muted); font-size: 12px; margin-left: auto; font-variant-numeric: tabular-nums; }
+.picker-panel .hint { color: var(--muted); font-size: 12px; padding: 4px 6px 8px; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 16px 0; }
+.kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.kpi .k { color: var(--text-2); font-size: 12px; }
+.kpi .v { font-size: 26px; font-weight: 650; line-height: 1.25; margin-top: 2px; }
+.kpi .d { font-size: 12px; color: var(--muted); }
+.up { color: var(--up); } .down { color: var(--down); }
+
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 860px) { .grid2 { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 12px; min-width: 0; }
+.card h2 { font-size: 14px; margin: 0 0 2px; }
+.card .sub { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.chart { position: relative; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.box { height: 10px; width: 10px; border-radius: 2px; }
+.empty { color: var(--muted); font-size: 13px; padding: 24px 0; text-align: center; }
+
+.tip { position: absolute; pointer-events: none; z-index: 10; background: var(--surface-2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 6px 10px; font-size: 12px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+.tip .t { color: var(--muted); margin-bottom: 2px; }
+.tip .r { display: flex; align-items: center; gap: 8px; }
+.tip .r b { font-variant-numeric: tabular-nums; }
+.tip .r span { color: var(--text-2); }
+.tip i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.axis text { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.baseline { stroke: var(--axis); stroke-width: 1; }
+.endlabel { font-size: 11px; fill: var(--text-2); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+th { color: var(--text-2); font-weight: 500; font-size: 12px; cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface); }
+th:first-child, td:first-child { text-align: left; }
+th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; }
+th[aria-sort="ascending"]::after { content: " ▲"; font-size: 9px; }
+td { font-variant-numeric: tabular-nums; }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--surface-2); }
+tr.sel td:first-child { font-weight: 650; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 8px; vertical-align: -1px; background: transparent; border: 1px solid var(--axis); }
+.bar { display: inline-block; height: 6px; border-radius: 3px; background: var(--s1); vertical-align: middle; margin-left: 6px; }
+.tablewrap { overflow-x: auto; max-height: 560px; overflow-y: auto; }
+.note { color: var(--muted); font-size: 12px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>SF6 <span>Tracker</span></h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <div id="alert"></div>
+
+  <div class="filters" role="group" aria-label="絞り込み">
+    <div><label for="season">Act</label><select id="season"></select></div>
+    <div><label>期間</label><span class="seg" id="range">
+      <button data-v="7">7日</button><button data-v="30">30日</button><button data-v="90">90日</button><button data-v="all">Act全体</button>
+    </span></div>
+  </div>
+
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+  <main id="main"></main>
+</div>
+
+<script>
+const D = {"generated_at":"2026-10-02T23:15:56","fighter":"MooMY","short_id":"2343590713","last":{"date":"2026-10-02","fetched_at":"2026-10-02T23:07:59","status":"ok","error":null},"last_ok":"2026-10-02T23:07:59","seasons":[13],"current_season":13,"names":{"ryu":"RYU","luke":"LUKE","kimberly":"KIMBERLY","chunli":"CHUN-LI","manon":"MANON","zangief":"ZANGIEF","jp":"JP","dhalsim":"DHALSIM","cammy":"CAMMY","ken":"KEN","deejay":"DEE JAY","lily":"LILY","aki":"A.K.I.","rashid":"RASHID","blanka":"BLANKA","juri":"JURI","marisa":"MARISA","guile":"GUILE","ed":"ED","honda":"E.HONDA","jamie":"JAMIE","gouki":"GOUKI","sagat":"SAGAT","vega":"VEGA","terry":"TERRY","mai":"MAI","elena":"ELENA","cviper":"C.VIPER","alex":"ALEX","ingrid":"INGRID","yasmine":"YASMINE","all":"ALL"},"rating":{"alex":[["2026-10-02",1496,36100,384384,36]],"cviper":[["2026-10-02",1606,93841,94830,36]],"ken":[["2026-10-02",1607,259830,92187,36]],"ryu":[["2026-10-02",1600,115922,118219,36]],"yasmine":[["2026-10-02",1500,25036,291716,36]]},"winrates":{"13":{"aki":[["2026-10-02",0,0]],"alex":[["2026-10-02",137,73]],"all":[["2026-10-02",2536,1318]],"blanka":[["2026-10-02",0,0]],"cammy":[["2026-10-02",0,0]],"chunli":[["2026-10-02",0,0]],"cviper":[["2026-10-02",952,500]],"deejay":[["2026-10-02",0,0]],"dhalsim":[["2026-10-02",0,0]],"ed":[["2026-10-02",0,0]],"elena":[["2026-10-02",0,0]],"gouki":[["2026-10-02",0,0]],"guile":[["2026-10-02",0,0]],"honda":[["2026-10-02",0,0]],"ingrid":[["2026-10-02",0,0]],"jamie":[["2026-10-02",0,0]],"jp":[["2026-10-02",0,0]],"juri":[["2026-10-02",0,0]],"ken":[["2026-10-02",589,297]],"kimberly":[["2026-10-02",0,0]],"lily":[["2026-10-02",0,0]],"luke":[["2026-10-02",0,0]],"mai":[["2026-10-02",0,0]],"manon":[["2026-10-02",0,0]],"marisa":[["2026-10-02",0,0]],"random":[["2026-10-02",0,0]],"rashid":[["2026-10-02",0,0]],"ryu":[["2026-10-02",693,352]],"sagat":[["2026-10-02",0,0]],"terry":[["2026-10-02",0,0]],"vega":[["2026-10-02",0,0]],"yasmine":[["2026-10-02",165,96]],"zangief":[["2026-10-02",0,0]]}},"matchups":{"13":{"alex":{"aki":[["2026-10-02",2,2]],"alex":[["2026-10-02",10,4]],"all":[["2026-10-02",137,73]],"blanka":[["2026-10-02",2,0]],"cammy":[["2026-10-02",1,1]],"cviper":[["2026-10-02",7,6]],"deejay":[["2026-10-02",7,5]],"elena":[["2026-10-02",2,2]],"gouki":[["2026-10-02",8,4]],"guile":[["2026-10-02",3,1]],"jamie":[["2026-10-02",11,4]],"jp":[["2026-10-02",4,0]],"juri":[["2026-10-02",2,0]],"ken":[["2026-10-02",2,1]],"kimberly":[["2026-10-02",3,1]],"lily":[["2026-10-02",1,0]],"luke":[["2026-10-02",6,3]],"mai":[["2026-10-02",3,3]],"manon":[["2026-10-02",3,2]],"marisa":[["2026-10-02",5,2]],"random":[["2026-10-02",1,1]],"rashid":[["2026-10-02",2,2]],"ryu":[["2026-10-02",12,6]],"sagat":[["2026-10-02",2,2]],"terry":[["2026-10-02",9,5]],"vega":[["2026-10-02",1,1]],"yasmine":[["2026-10-02",19,7]],"zangief":[["2026-10-02",9,8]]},"all":{"aki":[["2026-10-02",42,19]],"alex":[["2026-10-02",154,57]],"all":[["2026-10-02",2536,1318]],"blanka":[["2026-10-02",13,2]],"cammy":[["2026-10-02",85,51]],"chunli":[["2026-10-02",46,28]],"cviper":[["2026-10-02",95,47]],"deejay":[["2026-10-02",80,39]],"dhalsim":[["2026-10-02",13,8]],"ed":[["2026-10-02",44,22]],"elena":[["2026-10-02",34,21]],"gouki":[["2026-10-02",173,108]],"guile":[["2026-10-02",19,10]],"honda":[["2026-10-02",41,19]],"ingrid":[["2026-10-02",72,36]],"jamie":[["2026-10-02",121,54]],"jp":[["2026-10-02",75,47]],"juri":[["2026-10-02",96,52]],"ken":[["2026-10-02",108,55]],"kimberly":[["2026-10-02",24,10]],"lily":[["2026-10-02",27,11]],"luke":[["2026-10-02",190,100]],"mai":[["2026-10-02",79,46]],"manon":[["2026-10-02",49,26]],"marisa":[["2026-10-02",73,35]],"random":[["2026-10-02",10,9]],"rashid":[["2026-10-02",44,25]],"ryu":[["2026-10-02",165,94]],"sagat":[["2026-10-02",47,31]],"terry":[["2026-10-02",122,59]],"vega":[["2026-10-02",51,23]],"yasmine":[["2026-10-02",259,136]],"zangief":[["2026-10-02",85,38]]},"cviper":{"aki":[["2026-10-02",15,5]],"alex":[["2026-10-02",58,23]],"all":[["2026-10-02",952,500]],"blanka":[["2026-10-02",2,0]],"cammy":[["2026-10-02",36,21]],"chunli":[["2026-10-02",23,14]],"cviper":[["2026-10-02",42,22]],"deejay":[["2026-10-02",29,12]],"dhalsim":[["2026-10-02",4,4]],"ed":[["2026-10-02",18,7]],"elena":[["2026-10-02",14,7]],"gouki":[["2026-10-02",87,55]],"guile":[["2026-10-02",2,2]],"honda":[["2026-10-02",10,5]],"ingrid":[["2026-10-02",39,21]],"jamie":[["2026-10-02",48,21]],"jp":[["2026-10-02",41,26]],"juri":[["2026-10-02",30,12]],"ken":[["2026-10-02",34,15]],"kimberly":[["2026-10-02",11,3]],"lily":[["2026-10-02",6,5]],"luke":[["2026-10-02",68,37]],"mai":[["2026-10-02",35,21]],"manon":[["2026-10-02",17,6]],"marisa":[["2026-10-02",20,8]],"random":[["2026-10-02",4,4]],"rashid":[["2026-10-02",17,11]],"ryu":[["2026-10-02",70,41]],"sagat":[["2026-10-02",21,14]],"terry":[["2026-10-02",50,24]],"vega":[["2026-10-02",10,4]],"yasmine":[["2026-10-02",65,41]],"zangief":[["2026-10-02",26,9]]},"ken":{"aki":[["2026-10-02",9,3]],"alex":[["2026-10-02",41,13]],"all":[["2026-10-02",589,297]],"cammy":[["2026-10-02",20,13]],"chunli":[["2026-10-02",4,4]],"cviper":[["2026-10-02",25,8]],"deejay":[["2026-10-02",29,15]],"dhalsim":[["2026-10-02",2,0]],"ed":[["2026-10-02",11,5]],"elena":[["2026-10-02",10,8]],"gouki":[["2026-10-02",31,17]],"guile":[["2026-10-02",5,3]],"honda":[["2026-10-02",13,5]],"ingrid":[["2026-10-02",5,3]],"jamie":[["2026-10-02",23,9]],"jp":[["2026-10-02",7,5]],"juri":[["2026-10-02",17,12]],"ken":[["2026-10-02",30,15]],"kimberly":[["2026-10-02",10,6]],"lily":[["2026-10-02",16,4]],"luke":[["2026-10-02",54,27]],"mai":[["2026-10-02",15,9]],"manon":[["2026-10-02",9,7]],"marisa":[["2026-10-02",27,10]],"rashid":[["2026-10-02",13,6]],"ryu":[["2026-10-02",39,21]],"sagat":[["2026-10-02",10,8]],"terry":[["2026-10-02",25,13]],"vega":[["2026-10-02",11,8]],"yasmine":[["2026-10-02",66,35]],"zangief":[["2026-10-02",12,5]]},"ryu":{"aki":[["2026-10-02",15,8]],"alex":[["2026-10-02",39,15]],"all":[["2026-10-02",693,352]],"blanka":[["2026-10-02",9,2]],"cammy":[["2026-10-02",28,16]],"chunli":[["2026-10-02",16,7]],"cviper":[["2026-10-02",18,10]],"deejay":[["2026-10-02",15,7]],"dhalsim":[["2026-10-02",7,4]],"ed":[["2026-10-02",13,8]],"elena":[["2026-10-02",8,4]],"gouki":[["2026-10-02",41,26]],"guile":[["2026-10-02",9,4]],"honda":[["2026-10-02",15,8]],"ingrid":[["2026-10-02",25,9]],"jamie":[["2026-10-02",35,16]],"jp":[["2026-10-02",20,13]],"juri":[["2026-10-02",40,22]],"ken":[["2026-10-02",35,20]],"lily":[["2026-10-02",3,1]],"luke":[["2026-10-02",56,32]],"mai":[["2026-10-02",26,13]],"manon":[["2026-10-02",20,11]],"marisa":[["2026-10-02",18,13]],"random":[["2026-10-02",3,2]],"rashid":[["2026-10-02",9,3]],"ryu":[["2026-10-02",39,22]],"sagat":[["2026-10-02",14,7]],"terry":[["2026-10-02",34,15]],"vega":[["2026-10-02",25,8]],"yasmine":[["2026-10-02",23,11]],"zangief":[["2026-10-02",35,15]]},"yasmine":{"aki":[["2026-10-02",1,1]],"alex":[["2026-10-02",6,2]],"all":[["2026-10-02",165,96]],"chunli":[["2026-10-02",3,3]],"cviper":[["2026-10-02",3,1]],"ed":[["2026-10-02",2,2]],"gouki":[["2026-10-02",6,6]],"honda":[["2026-10-02",3,1]],"ingrid":[["2026-10-02",3,3]],"jamie":[["2026-10-02",4,4]],"jp":[["2026-10-02",3,3]],"juri":[["2026-10-02",7,6]],"ken":[["2026-10-02",7,4]],"lily":[["2026-10-02",1,1]],"luke":[["2026-10-02",6,1]],"marisa":[["2026-10-02",3,2]],"random":[["2026-10-02",2,2]],"rashid":[["2026-10-02",3,3]],"ryu":[["2026-10-02",5,4]],"terry":[["2026-10-02",4,2]],"vega":[["2026-10-02",4,2]],"yasmine":[["2026-10-02",86,42]],"zangief":[["2026-10-02",3,1]]}}},"stats":{"corner_time":[["2026-10-02",7.9]],"cornered_time":[["2026-10-02",9.0]],"drive_impact":[["2026-10-02",0.3]],"drive_impact_to_drive_impact":[["2026-10-02",0.1]],"drive_parry":[["2026-10-02",1.6]],"drive_reversal":[["2026-10-02",0.0]],"gauge_rate_ca":[["2026-10-02",6.73]],"gauge_rate_drive_arts":[["2026-10-02",24.23]],"gauge_rate_drive_guard":[["2026-10-02",13.5]],"gauge_rate_drive_impact":[["2026-10-02",3.75]],"gauge_rate_drive_other":[["2026-10-02",47.27]],"gauge_rate_drive_reversal":[["2026-10-02",0.13]],"gauge_rate_drive_rush_from_cancel":[["2026-10-02",5.13]],"gauge_rate_drive_rush_from_parry":[["2026-10-02",5.96]],"gauge_rate_sa_lv1":[["2026-10-02",50.96]],"gauge_rate_sa_lv2":[["2026-10-02",23.07]],"gauge_rate_sa_lv3":[["2026-10-02",19.23]],"just_parry":[["2026-10-02",0.3]],"punish_counter":[["2026-10-02",0.2]],"received_drive_impact":[["2026-10-02",0.2]],"received_drive_impact_to_drive_impact":[["2026-10-02",0.0]],"received_punish_counter":[["2026-10-02",0.1]],"received_stun":[["2026-10-02",0.0]],"received_throw_count":[["2026-10-02",2.7]],"received_throw_drive_parry":[["2026-10-02",0.2]],"stun":[["2026-10-02",0.0]],"throw_count":[["2026-10-02",2.0]],"throw_drive_parry":[["2026-10-02",0.1]],"throw_tech":[["2026-10-02",1.1]]},"stat_labels":{"gauge_rate_drive_guard":"Dゲージ: ドライブパリィ %","gauge_rate_drive_impact":"Dゲージ: ドライブインパクト %","gauge_rate_drive_arts":"Dゲージ: OD技 %","gauge_rate_drive_rush_from_parry":"Dゲージ: パリィラッシュ %","gauge_rate_drive_rush_from_cancel":"Dゲージ: キャンセルラッシュ %","gauge_rate_drive_reversal":"Dゲージ: ドライブリバーサル %","gauge_rate_drive_other":"Dゲージ: ダメージ %","gauge_rate_sa_lv1":"SA: Lv1 %","gauge_rate_sa_lv2":"SA: Lv2 %","gauge_rate_sa_lv3":"SA: Lv3 %","gauge_rate_ca":"SA: CA %","drive_parry":"パリィ成功","just_parry":"ジャストパリィ","throw_drive_parry":"相手のパリィを投げた","received_throw_drive_parry":"自分のパリィを投げられた","drive_impact":"インパクト決めた","received_drive_impact":"インパクト受けた","drive_impact_to_drive_impact":"インパクト返し決めた","received_drive_impact_to_drive_impact":"インパクト返された","punish_counter":"パニカン決めた","received_punish_counter":"パニカン受けた","drive_reversal":"ドライブリバーサル","stun":"スタンさせた","received_stun":"スタンさせられた","throw_count":"投げ決めた","received_throw_count":"投げ受けた","throw_tech":"投げ抜け","corner_time":"相手を壁に追い込んだ時間(秒)","cornered_time":"壁に追い込まれた時間(秒)"},"default_tabs":[]};
+
+// ------------------------------------------------------------ utilities
+const SERIES = ["--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8"].map(v => `var(${v})`);
+const NS = "http://www.w3.org/2000/svg";
+function h(tag, attrs = {}, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (v == null) continue;
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  return e;
+}
+function s(tag, attrs = {}) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) e.setAttribute(k, v);
+  return e;
+}
+const name = t => (D.names && D.names[t]) || t;
+const pct = (w, b) => b ? (100 * w / b) : null;
+const fPct = v => v == null ? "—" : v.toFixed(1) + "%";
+const fNum = v => v == null ? "—" : Number(v).toLocaleString("ja-JP");
+const fSigned = (v, digits = 0, unit = "") => {
+  if (v == null || isNaN(v)) return "—";
+  const r = +v.toFixed(digits);
+  return (r > 0 ? "+" : r < 0 ? "−" : "±") + Math.abs(r).toFixed(digits) + unit;
+};
+const cls = (v, digits = 0) => v == null ? "" : +v.toFixed(digits) > 0 ? "up" : +v.toFixed(digits) < 0 ? "down" : "";
+const md = d => d.slice(5).replace("-", "/");
+const toT = d => Date.parse(d + "T00:00:00");
+const store = {
+  get(k, def) { try { const v = localStorage.getItem("sf6tracker." + k); return v ? JSON.parse(v) : def; } catch { return def; } },
+  set(k, v) { try { localStorage.setItem("sf6tracker." + k, JSON.stringify(v)); } catch {} },
+};
+
+// ------------------------------------------------------------ data access
+function seasonDates(season) {
+  const all = (D.winrates[season] || {}).all || [];
+  return all.map(r => r[0]);
+}
+// 期間内の日付と、その直前の日付（差分の基準）
+function rangeInfo(season) {
+  const dates = seasonDates(season);
+  if (!dates.length) return { dates: [], base: null, all: dates };
+  let inRange = dates;
+  if (state.range !== "all") {
+    const cutoff = toT(dates[dates.length - 1]) - Number(state.range) * 864e5;
+    inRange = dates.filter(d => toT(d) > cutoff);
+  }
+  const bi = dates.indexOf(inRange[0]) - 1;
+  return { dates: inRange, base: bi >= 0 ? dates[bi] : null, all: dates };
+}
+// [[date,b,w]] → 指定日の値（無ければ 0。対戦0の組み合わせは保存していないため）
+function valAt(rows, date) {
+  for (const r of rows || []) if (r[0] === date) return [r[1], r[2]];
+  return [0, 0];
+}
+function dailyDiffs(rows, allDates, rangeDates) {
+  const out = [];
+  for (const d of rangeDates) {
+    const i = allDates.indexOf(d);
+    if (i <= 0) { out.push(null); continue; }
+    const [b1, w1] = valAt(rows, d), [b0, w0] = valAt(rows, allDates[i - 1]);
+    out.push([b1 - b0, w1 - w0]);
+  }
+  return out;
+}
+function playedRanked(season) {
+  const wr = D.winrates[season] || {};
+  return Object.keys(wr).filter(c => c !== "all")
+    .map(c => ({ c, b: wr[c][wr[c].length - 1][1] })).filter(x => x.b > 0).sort((a, b) => b.b - a.b);
+}
+
+// ------------------------------------------------------------ charts
+function niceTicks(lo, hi, n = 4) {
+  if (lo === hi) { lo -= 1; hi += 1; }
+  const step0 = (hi - lo) / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(st => st >= step0);
+  const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step, t = [];
+  for (let v = a; v <= b + step / 2; v += step) t.push(+v.toFixed(6));
+  return t;
+}
+function legendEl(series, box) {
+  if (series.length < 2) return null;
+  return h("div", { class: "legend" }, series.map(se =>
+    h("span", {}, h("i", { class: box ? "box" : null, style: `background:${se.color}` }), se.name)));
+}
+/**
+ * opts: { dates, series:[{name,color,values}], type:"line"|"bar"(stacked), yFmt, yMin, yMax, height, endLabels }
+ */
+function chart(card, opts) {
+  let container = card.querySelector(":scope > .chartbody");
+  if (!container) { container = h("div", { class: "chartbody" }); card.append(container); }
+  container.replaceChildren();
+  const { dates, series, type = "line" } = opts;
+  if (!dates.length || series.every(se => se.values.every(v => v == null))) {
+    container.append(h("div", { class: "empty" }, "この期間のデータがありません")); return;
+  }
+  const lg = legendEl(series, type === "bar");
+  if (lg) container.append(lg);
+  const box = h("div", { class: "chart" });
+  container.append(box);
+  const W = Math.max(280, box.clientWidth || container.clientWidth || 600), H = opts.height || 220;
+  const endLabels = type === "line" && opts.endLabels !== false && series.length <= 4 && series.length >= 2;
+  const m = { l: 44, r: endLabels ? 86 : 12, t: 10, b: 24 };
+  const iw = W - m.l - m.r, ih = H - m.t - m.b;
+
+  let lo, hi;
+  if (type === "bar") {
+    lo = 0; hi = Math.max(1, ...dates.map((_, i) => series.reduce((a, se) => a + (se.values[i] || 0), 0)));
+  } else {
+    const vals = series.flatMap(se => se.values).filter(v => v != null);
+    lo = opts.yMin ?? Math.min(...vals); hi = opts.yMax ?? Math.max(...vals);
+    const pad = (hi - lo) * 0.08 || Math.max(1, Math.abs(hi) * 0.01); if (opts.yMin == null) lo -= pad; if (opts.yMax == null) hi += pad;
+  }
+  const ticks = niceTicks(lo, hi); lo = Math.min(lo, ticks[0]); hi = Math.max(hi, ticks[ticks.length - 1]);
+  if (opts.yMin != null) lo = opts.yMin; if (opts.yMax != null) hi = opts.yMax;
+  const y = v => m.t + ih - (v - lo) / (hi - lo) * ih;
+  const ts = dates.map(toT), t0 = ts[0], t1 = ts[ts.length - 1];
+  const x = i => dates.length === 1 ? m.l + iw / 2 : m.l + (ts[i] - t0) / (t1 - t0) * iw;
+  const yFmt = opts.yFmt || (v => fNum(v));
+
+  const svg = s("svg", { viewBox: `0 0 ${W} ${H}`, role: "img" });
+  const ax = s("g", { class: "axis" });
+  for (const tv of ticks) {
+    if (tv < lo - 1e-9 || tv > hi + 1e-9) continue;
+    ax.append(s("line", { x1: m.l, x2: m.l + iw, y1: y(tv), y2: y(tv), class: tv === lo ? "baseline" : "gridline" }));
+    const tx = s("text", { x: m.l - 6, y: y(tv) + 4, "text-anchor": "end" }); tx.textContent = yFmt(tv); ax.append(tx);
+  }
+  // x labels: 最大6個
+  const step = Math.max(1, Math.ceil(dates.length / Math.max(2, Math.min(6, Math.floor(iw / 64)))));
+  for (let i = 0; i < dates.length; i += step) {
+    const anchor = x(i) > m.l + iw - 20 ? "end" : x(i) < m.l + 20 ? "start" : "middle";
+    const tx = s("text", { x: x(i), y: H - 6, "text-anchor": anchor }); tx.textContent = md(dates[i]); ax.append(tx);
+  }
+  svg.append(ax);
+
+  if (type === "bar") {
+    const minGap = dates.length > 1 ? Math.min(...ts.slice(1).map((t, i) => (t - ts[i]))) / (t1 - t0) * iw : iw / 3;
+    const bw = Math.max(2, Math.min(28, minGap * 0.7));
+    dates.forEach((_, i) => {
+      let acc = 0;
+      series.forEach((se, si) => {
+        const v = se.values[i] || 0; if (v <= 0) return;
+        const y0 = y(acc), y1 = y(acc + v); acc += v;
+        const top = si === series.length - 1 || series.slice(si + 1).every(o => !(o.values[i] > 0));
+        const gap = si > 0 ? 1 : 0;
+        const hgt = Math.max(1, y0 - y1 - gap), r = top ? Math.min(4, bw / 2, hgt) : 0;
+        const X = x(i) - bw / 2, Y = y1;
+        svg.append(s("path", { fill: se.color, d:
+          `M${X},${Y + hgt}V${Y + r}a${r},${r} 0 0 1 ${r},${-r}H${X + bw - r}a${r},${r} 0 0 1 ${r},${r}V${Y + hgt}Z` }));
+      });
+    });
+  } else {
+    series.forEach(se => {
+      let d = "", pen = false;
+      se.values.forEach((v, i) => { if (v == null) { pen = false; return; } d += (pen ? "L" : "M") + x(i).toFixed(1) + "," + y(v).toFixed(1); pen = true; });
+      svg.append(s("path", { d, fill: "none", stroke: se.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+      se.values.forEach((v, i) => {
+        const isolated = v != null && se.values[i - 1] == null && se.values[i + 1] == null;
+        if (isolated || (dates.length <= 12 && v != null))
+          svg.append(s("circle", { cx: x(i), cy: y(v), r: 3, fill: se.color, stroke: "var(--surface)", "stroke-width": 2 }));
+      });
+    });
+    if (endLabels) {
+      const items = series.map(se => {
+        let i = se.values.length - 1; while (i >= 0 && se.values[i] == null) i--;
+        return i < 0 ? null : { se, i, yy: y(se.values[i]) };
+      }).filter(Boolean).sort((a, b) => a.yy - b.yy);
+      for (let k = 1; k < items.length; k++) if (items[k].yy - items[k - 1].yy < 13) items[k].yy = items[k - 1].yy + 13;
+      items.forEach(it => {
+        const tx = s("text", { x: m.l + iw + 8, y: it.yy + 4, class: "endlabel" }); tx.textContent = it.se.name; svg.append(tx);
+      });
+    }
+  }
+
+  // hover: crosshair + tooltip（全系列の値）
+  const cross = s("line", { y1: m.t, y2: m.t + ih, stroke: "var(--muted)", "stroke-width": 1, visibility: "hidden" });
+  svg.append(cross);
+  const hit = s("rect", { x: m.l - 10, y: 0, width: iw + 20, height: H, fill: "transparent", tabindex: 0 });
+  svg.append(hit);
+  box.append(svg);
+  const tip = h("div", { class: "tip", hidden: "" }); box.append(tip);
+  const show = i => {
+    cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+    tip.replaceChildren(h("div", { class: "t" }, dates[i]),
+      ...(opts.tipRows ? opts.tipRows(i) : series.map(se => h("div", { class: "r" },
+        h("i", { style: `background:${se.color}` }), h("b", {}, se.values[i] == null ? "—" : yFmt(se.values[i])), h("span", {}, se.name)))));
+    tip.hidden = false;
+    const tw = tip.offsetWidth, px = x(i) * box.clientWidth / W;
+    tip.style.left = Math.min(Math.max(0, px + 12), box.clientWidth - tw) + "px";
+    tip.style.top = "8px";
+  };
+  const nearest = ev => {
+    const r = svg.getBoundingClientRect(), px = (ev.clientX - r.left) * W / r.width;
+    let best = 0; dates.forEach((_, i) => { if (Math.abs(x(i) - px) < Math.abs(x(best) - px)) best = i; }); return best;
+  };
+  let cur = dates.length - 1;
+  hit.addEventListener("pointermove", ev => { cur = nearest(ev); show(cur); });
+  hit.addEventListener("pointerleave", () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); });
+  hit.addEventListener("focus", () => show(cur));
+  hit.addEventListener("blur", () => { tip.hidden = true; cross.setAttribute("visibility", "hidden"); });
+  hit.addEventListener("keydown", ev => {
+    if (ev.key === "ArrowLeft") cur = Math.max(0, cur - 1); else if (ev.key === "ArrowRight") cur = Math.min(dates.length - 1, cur + 1); else return;
+    ev.preventDefault(); show(cur);
+  });
+}
+function sparkline(values) {
+  const v = values.filter(x => x != null);
+  const svg = s("svg", { width: 72, height: 18, viewBox: "0 0 72 18", "aria-hidden": "true" });
+  if (v.length < 2) return svg;
+  const lo = Math.min(...v), hi = Math.max(...v), sp = hi - lo || 1;
+  let d = "", pen = false;
+  values.forEach((val, i) => {
+    if (val == null) { pen = false; return; }
+    d += (pen ? "L" : "M") + (2 + i / (values.length - 1) * 68).toFixed(1) + "," + (16 - (val - lo) / sp * 14).toFixed(1); pen = true;
+  });
+  svg.append(s("path", { d, fill: "none", stroke: "var(--text-2)", "stroke-width": 1.5 }));
+  return svg;
+}
+function sortableTable(cols, rows, { sortKey, sortDir = -1, onRow, rowClass } = {}) {
+  let key = sortKey || cols[1].key, dir = sortDir;
+  const thead = h("thead"), tbody = h("tbody");
+  const draw = () => {
+    thead.replaceChildren(h("tr", {}, cols.map(c => h("th", {
+      "aria-sort": c.key === key ? (dir < 0 ? "descending" : "ascending") : null, title: c.title || null,
+      onclick: () => { if (key === c.key) dir = -dir; else { key = c.key; dir = c.text ? 1 : -1; } draw(); },
+    }, c.label))));
+    const sorted = [...rows].sort((a, b) => {
+      const va = a[key], vb = b[key];
+      if (va == null && vb == null) return 0; if (va == null) return 1; if (vb == null) return -1;
+      return (typeof va === "string" ? va.localeCompare(vb) : va - vb) * dir;
+    });
+    tbody.replaceChildren(...sorted.map(r => h("tr", { class: rowClass ? rowClass(r) : null, onclick: onRow ? () => onRow(r) : null },
+      cols.map(c => h("td", { class: c.cls ? c.cls(r) : null }, c.render ? c.render(r) : r[c.key] ?? "—")))));
+  };
+  draw();
+  return h("div", { class: "tablewrap" }, h("table", {}, thead, tbody));
+}
+
+// ------------------------------------------------------------ state
+const state = {
+  season: String(D.current_season ?? (D.seasons[0] ?? "")),
+  range: store.get("range", "30"),
+  tabs: store.get("tabs", null),
+  active: store.get("active", "overview"),
+  rivals: store.get("rivals", {}),
+};
+if (!Array.isArray(state.tabs)) {
+  state.tabs = (D.default_tabs && D.default_tabs.length ? D.default_tabs : playedRanked(state.season).slice(0, 3).map(x => x.c));
+}
+const save = () => { store.set("range", state.range); store.set("tabs", state.tabs); store.set("active", state.active); store.set("rivals", state.rivals); };
+
+// ------------------------------------------------------------ header / filters / tabs
+function renderHeader() {
+  const meta = document.getElementById("meta");
+  meta.textContent = [D.fighter && `${D.fighter} (${D.short_id || ""})`, D.last_ok && `最終取得 ${D.last_ok.replace("T", " ")}`,
+    `ダッシュボード作成 ${D.generated_at.replace("T", " ")}`].filter(Boolean).join("  ·  ");
+  const al = document.getElementById("alert");
+  al.replaceChildren();
+  if (D.last && D.last.status !== "ok") {
+    al.append(h("div", { class: "alert" }, h("b", {}, D.last.status === "auth_error" ? "ログインが切れています" : "取得に失敗しました"),
+      ` ${D.last.date}: ${D.last.error || ""}`, D.last.status === "auth_error" ? " — setup.bat で Cookie を貼り直してください" : ""));
+  }
+  const sel = document.getElementById("season");
+  sel.replaceChildren(...D.seasons.map(se => h("option", { value: se, selected: String(se) === state.season ? "" : null },
+    `Act ${se}` + (se === D.current_season ? "（今）" : ""))));
+  sel.onchange = () => { state.season = sel.value; render(); };
+  document.querySelectorAll("#range button").forEach(b => {
+    b.setAttribute("aria-pressed", b.dataset.v === state.range);
+    b.onclick = () => { state.range = b.dataset.v; save(); renderHeader(); renderMain(); };
+  });
+}
+let pickerOpen = false;
+function renderTabs() {
+  const nav = document.getElementById("tabs");
+  if (state.active !== "overview" && !state.tabs.includes(state.active)) state.active = "overview";
+  const tab = (id, label) => h("button", { class: "tab", role: "tab", "aria-selected": state.active === id,
+    onclick: () => { state.active = id; save(); renderTabs(); renderMain(); } }, label);
+  const picker = h("div", { class: "picker" },
+    h("button", { class: "tab add", "aria-expanded": pickerOpen, onclick: ev => { ev.stopPropagation(); pickerOpen = !pickerOpen; renderTabs(); } }, "＋ キャラを選ぶ"));
+  if (pickerOpen) {
+    const played = playedRanked(state.season);
+    const others = Object.keys(D.rating).filter(c => !played.some(p => p.c === c));
+    const panel = h("div", { class: "picker-panel", onclick: ev => ev.stopPropagation() },
+      h("div", { class: "hint" }, "タブに表示するキャラ（右はこのActのランクマ対戦数）"),
+      [...played, ...others.map(c => ({ c, b: 0 }))].map(({ c, b }) => h("label", {},
+        h("input", { type: "checkbox", checked: state.tabs.includes(c) ? "" : null, onchange: ev => {
+          state.tabs = ev.target.checked ? [...state.tabs, c] : state.tabs.filter(t => t !== c);
+          if (ev.target.checked) state.active = c;
+          save(); renderTabs(); renderMain();
+        } }), name(c), h("span", { class: "sub" }, b ? `${fNum(b)}戦` : ""))));
+    picker.append(panel);
+  }
+  nav.replaceChildren(tab("overview", "概要"), ...state.tabs.map(c => tab(c, name(c))), picker);
+}
+document.addEventListener("click", () => { if (pickerOpen) { pickerOpen = false; renderTabs(); } });
+
+// ------------------------------------------------------------ KPI
+function kpi(label, value, delta, deltaCls) {
+  return h("div", { class: "kpi" }, h("div", { class: "k" }, label), h("div", { class: "v" }, value),
+    h("div", { class: "d " + (deltaCls || "") }, delta || " "));
+}
+function rangeLabel() { return state.range === "all" ? "Act全体" : `直近${state.range}日`; }
+
+// ------------------------------------------------------------ overview tab
+function renderOverview(main) {
+  const se = state.season, R = rangeInfo(se);
+  if (!R.all.length) { main.append(h("div", { class: "empty" }, "まだ記録がありません。fetch.bat を実行してください。")); return; }
+  const allRows = (D.winrates[se] || {}).all || [];
+  const [b, w] = valAt(allRows, R.all[R.all.length - 1]);
+  const [bb, bw] = R.base ? valAt(allRows, R.base) : valAt(allRows, R.dates[0]);
+  const pb = b - bb, pw = w - bw;
+  const diffs = dailyDiffs(allRows, R.all, R.dates);
+
+  // MR（最新のMASTERキャラ）
+  const latestDate = Object.values(D.rating).flat().reduce((a, r) => r[0] > a ? r[0] : a, "");
+  const mrRows = Object.entries(D.rating).map(([c, rows]) => {
+    const last = rows[rows.length - 1];
+    const startRow = rows.find(r => r[0] >= (R.base || R.dates[0]));
+    const wr = (D.winrates[se] || {})[c] || [];
+    const [cb, cw] = valAt(wr, R.all[R.all.length - 1]);
+    return { c, name: name(c), mr: last[1] || null, diff: last[1] && startRow && startRow[1] ? last[1] - startRow[1] : null,
+      rank: last[3] || null, lp: last[2], b: cb || null, wr: pct(cw, cb), stale: last[0] !== latestDate };
+  }).filter(r => r.mr || r.b);
+  const top = mrRows.filter(r => r.mr).sort((a, b) => b.mr - a.mr)[0];
+
+  main.append(h("div", { class: "kpis" },
+    kpi(`Act ${se} ランクマ（全キャラ）`, fPct(pct(w, b)), `${fNum(b)}戦 ${fNum(w)}勝`),
+    kpi(`${rangeLabel()}の対戦`, `${fNum(pb)}戦`, pb ? `${fNum(pw)}勝 ・ 勝率 ${fPct(pct(pw, pb))}` : "対戦なし"),
+    top ? kpi("最高MR", `${fNum(top.mr)}`, `${top.name}${top.diff ? " ・ " + fSigned(top.diff, 0, " MR") : ""}`, cls(top.diff)) : null,
+  ));
+
+  const c1 = h("div", { class: "card" }, h("h2", {}, "日別のランクマ対戦数（全キャラ）"), h("div", { class: "sub" }, "前回取得からの増分。勝ち・負けの積み上げ"));
+  main.append(c1);
+  chart(c1, { type: "bar", dates: R.dates, yFmt: v => fNum(v), height: 200,
+    series: [{ name: "勝ち", color: "var(--s1)", values: diffs.map(d => d && d[1]) },
+             { name: "負け", color: "var(--loss)", values: diffs.map(d => d && d[0] - d[1]) }],
+    tipRows: i => diffs[i] ? [h("div", { class: "r" }, h("b", {}, `${diffs[i][0]}戦 ${diffs[i][1]}勝`), h("span", {}, diffs[i][0] ? `勝率 ${fPct(pct(diffs[i][1], diffs[i][0]))}` : ""))]
+                           : [h("div", { class: "r" }, h("span", {}, "前回の記録なし"))] });
+
+  const grid = h("div", { class: "grid2" });
+  const c2 = h("div", { class: "card" }, h("h2", {}, "キャラ別 MR"), h("div", { class: "sub" }, `MR差は${rangeLabel()}の始めとの比較。行をクリックでタブに追加`));
+  c2.append(sortableTable([
+    { key: "name", label: "キャラ", text: true },
+    { key: "mr", label: "MR", render: r => fNum(r.mr) },
+    { key: "diff", label: "MR差", render: r => fSigned(r.diff), cls: r => cls(r.diff) },
+    { key: "rank", label: "Legend順位", render: r => r.rank ? fNum(r.rank) : "—" },
+    { key: "b", label: "ランクマ", render: r => r.b ? `${fNum(r.b)}戦` : "—" },
+    { key: "wr", label: "勝率", render: r => fPct(r.wr) },
+  ], mrRows, { sortKey: "mr", onRow: r => { if (!state.tabs.includes(r.c)) state.tabs.push(r.c); state.active = r.c; save(); renderTabs(); renderMain(); } }));
+  grid.append(c2);
+
+  const c3 = h("div", { class: "card" }, h("h2", {}, "過去100戦の傾向"), h("div", { class: "sub" }, `1試合あたり（Dゲージ・SAは使用割合%）。${rangeLabel()}の始めとの比較`));
+  const startD = R.base || R.dates[0], endD = R.dates[R.dates.length - 1];
+  let statOrder = 0;
+  const statRows = Object.entries(D.stat_labels).map(([k, label]) => {
+    const rows = D.stats[k] || []; if (!rows.length) return null;
+    const at = d => { let v = null; for (const r of rows) if (r[0] <= d) v = r[1]; return v; };
+    const now = at(endD), then = at(startD);
+    const inR = rows.filter(r => r[0] >= startD && r[0] <= endD);
+    return { order: statOrder++, label, now, then, diff: now != null && then != null ? now - then : null, spark: inR.map(r => r[1]) };
+  }).filter(Boolean);
+  c3.append(sortableTable([
+    { key: "label", label: "項目", text: true },
+    { key: "now", label: "最新", render: r => r.now == null ? "—" : r.now.toFixed(2) },
+    { key: "diff", label: "変化", render: r => fSigned(r.diff, 2) },
+    { key: "spark", label: "推移", render: r => sparkline(r.spark) },
+  ], statRows, { sortKey: "order", sortDir: 1 }));
+  grid.append(c3);
+  main.append(grid);
+}
+
+// ------------------------------------------------------------ character tab
+function renderChar(main, c) {
+  const se = state.season, R = rangeInfo(se);
+  const wr = (D.winrates[se] || {})[c] || [];
+  const mu = ((D.matchups[se] || {})[c]) || {};
+  const ratingRows = (D.rating[c] || []);
+  if (!R.all.length) { main.append(h("div", { class: "empty" }, "まだ記録がありません。")); return; }
+
+  const end = R.all[R.all.length - 1], start = R.base || R.dates[0];
+  const [b, w] = valAt(wr, end), [b0, w0] = valAt(wr, start);
+  const pb = b - b0, pw = w - w0;
+  const rr = ratingRows.filter(r => r[0] >= start && r[0] <= end);
+  const lastR = ratingRows[ratingRows.length - 1];
+  const mrDiff = rr.length && rr[0][1] && lastR && lastR[1] ? lastR[1] - rr[0][1] : null;
+  const rankDiff = rr.length && rr[0][3] && lastR && lastR[3] ? rr[0][3] - lastR[3] : null;
+
+  main.append(h("div", { class: "kpis" },
+    kpi("MR", lastR && lastR[1] ? fNum(lastR[1]) : "—", mrDiff != null ? `${fSigned(mrDiff, 0, " MR")}（${rangeLabel()}）` : "", cls(mrDiff)),
+    kpi("Legend順位", lastR && lastR[3] ? fNum(lastR[3]) + "位" : "—", rankDiff ? `${fSigned(rankDiff, 0, "位")}（上がった数）` : "", cls(rankDiff)),
+    kpi(`Act ${se} ランクマ`, fPct(pct(w, b)), `${fNum(b)}戦 ${fNum(w)}勝`),
+    kpi(`${rangeLabel()}の対戦`, `${fNum(pb)}戦`, pb ? `${fNum(pw)}勝 ・ 勝率 ${fPct(pct(pw, pb))}` : "対戦なし"),
+  ));
+
+  const grid = h("div", { class: "grid2" });
+  const c1 = h("div", { class: "card" }, h("h2", {}, "MR の推移"), h("div", { class: "sub" }, "取得時点のマスターレート"));
+  grid.append(c1);
+  const c2 = h("div", { class: "card" }, h("h2", {}, "日別の対戦数"), h("div", { class: "sub" }, "前回取得からの増分（勝ち・負け）"));
+  grid.append(c2);
+  main.append(grid);
+  const mrByDate = Object.fromEntries(ratingRows.map(r => [r[0], r[1] || null]));
+  chart(c1, { dates: R.dates, series: [{ name: "MR", color: "var(--s1)", values: R.dates.map(d => mrByDate[d] ?? null) }], height: 200 });
+  const diffs = dailyDiffs(wr, R.all, R.dates);
+  chart(c2, { type: "bar", dates: R.dates, height: 200,
+    series: [{ name: "勝ち", color: "var(--s1)", values: diffs.map(d => d && d[1]) },
+             { name: "負け", color: "var(--loss)", values: diffs.map(d => d && d[0] - d[1]) }],
+    tipRows: i => diffs[i] ? [h("div", { class: "r" }, h("b", {}, `${diffs[i][0]}戦 ${diffs[i][1]}勝`), h("span", {}, diffs[i][0] ? `勝率 ${fPct(pct(diffs[i][1], diffs[i][0]))}` : ""))]
+                           : [h("div", { class: "r" }, h("span", {}, "前回の記録なし"))] });
+
+  // 相手キャラ別
+  const rivalRows = Object.entries(mu).map(([rv, rows]) => {
+    const [rb, rw] = valAt(rows, end), [sb, sw] = valAt(rows, start);
+    const cum = R.dates.map(d => { const [x, y] = valAt(rows, d); return pct(y, x); });
+    const wrNow = pct(rw, rb), wrThen = pct(sw, sb);
+    return { rv, name: name(rv), b: rb, w: rw, wr: wrNow, pb: rb - sb, pw: rw - sw, pwr: pct(rw - sw, rb - sb),
+      dwr: wrNow != null && wrThen != null && rb !== sb ? wrNow - wrThen : null, cum };
+  }).filter(r => r.b > 0 && r.rv !== "all");
+
+  let sel = (state.rivals[c] || []).filter(rv => rivalRows.some(r => r.rv === rv));
+  if (!sel.length) sel = [...rivalRows].sort((a, b) => b.b - a.b).slice(0, 3).map(r => r.rv);
+  const colorOf = rv => SERIES[sel.indexOf(rv)];
+
+  const c3 = h("div", { class: "card" }, h("h2", {}, "相手キャラ別 勝率の推移"),
+    h("div", { class: "sub" }, "Act累計の勝率。下の表の行をクリックで表示するキャラを切り替え（最大4キャラ）"));
+  const chartBox = h("div");
+  c3.append(chartBox);
+  main.append(c3);
+  const drawRivalChart = () => chart(chartBox, { dates: R.dates, yFmt: v => v.toFixed(0) + "%", height: 240,
+    series: sel.map(rv => { const r = rivalRows.find(x => x.rv === rv); return { name: name(rv), color: colorOf(rv), values: r.cum }; }),
+    tipRows: i => sel.map(rv => { const r = rivalRows.find(x => x.rv === rv); const [x, y] = valAt(mu[rv], R.dates[i]);
+      return h("div", { class: "r" }, h("i", { style: `background:${colorOf(rv)}` }), h("b", {}, fPct(r.cum[i])), h("span", {}, `${name(rv)}（${x}戦${y}勝）`)); }) });
+  drawRivalChart();
+
+  const c4 = h("div", { class: "card" }, h("h2", {}, `相手キャラ別（Act ${se}・ランクマッチ）`),
+    h("div", { class: "sub" }, `「期間」列は${rangeLabel()}の増分。勝率変化はAct累計勝率の${rangeLabel()}の始めとの差`));
+  const tableBox = h("div");
+  c4.append(tableBox);
+  main.append(c4);
+  const maxB = Math.max(1, ...rivalRows.map(r => r.b));
+  const drawTable = () => tableBox.replaceChildren(sortableTable([
+    { key: "name", label: "相手キャラ", text: true, render: r => [h("span", { class: "swatch", style: sel.includes(r.rv) ? `background:${colorOf(r.rv)};border-color:${colorOf(r.rv)}` : null }), r.name] },
+    { key: "b", label: "対戦数", render: r => [fNum(r.b), h("span", { class: "bar", style: `width:${Math.round(40 * r.b / maxB)}px` })] },
+    { key: "wr", label: "勝率", render: r => fPct(r.wr) },
+    { key: "pb", label: "期間 対戦", render: r => r.pb ? fNum(r.pb) : "—" },
+    { key: "pwr", label: "期間 勝率", render: r => r.pb ? `${fPct(r.pwr)}（${r.pw}勝）` : "—" },
+    { key: "dwr", label: "勝率変化", render: r => fSigned(r.dwr, 1, "pt"), cls: r => cls(r.dwr, 1) },
+    { key: "spark", label: "推移", render: r => sparkline(r.cum) },
+  ], rivalRows, { sortKey: "b", rowClass: r => sel.includes(r.rv) ? "sel" : null, onRow: r => {
+      if (sel.includes(r.rv)) sel = sel.filter(x => x !== r.rv);
+      else { if (sel.length >= 4) sel = sel.slice(1); sel = [...sel, r.rv]; }
+      state.rivals[c] = sel; save(); drawRivalChart(); drawTable();
+    } }));
+  drawTable();
+  if (!rivalRows.length) tableBox.replaceChildren(h("div", { class: "empty" }, "このActのランクマ対戦はまだありません"));
+}
+
+// ------------------------------------------------------------ main
+function renderMain() {
+  const main = document.getElementById("main");
+  main.replaceChildren();
+  const n = seasonDates(state.season).length;
+  if (n === 1) main.append(h("div", { class: "note", style: "margin-top:12px" },
+    "記録はまだ1日分です。2日目以降の取得から、日別の対戦数・期間内の成績・推移のグラフが表示されます。"));
+  if (state.active === "overview") renderOverview(main); else renderChar(main, state.active);
+}
+function render() { renderHeader(); renderTabs(); renderMain(); }
+let rt; window.addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(renderMain, 150); });
+render();
+</script>
+</body>
+</html>
